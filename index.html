@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Автоматизация документов (.doc)</title>
+  <title>Генератор документов</title>
   
-  <!-- Библиотеки для JSZip и сохранения файлов -->
+  <!-- Надежные библиотеки для работы с .docx -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
@@ -73,7 +75,6 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
 
-    /* Префиксная группа для кадастрового номера */
     .input-prefix-group {
       display: flex;
       align-items: center;
@@ -143,15 +144,14 @@
     <form id="docForm">
       <div class="form-group">
         <label for="fio">ФИО ($ФИО$)</label>
-        <input type="text" id="fio" placeholder="Иванов Иван Иванович" required>
+        <input type="text" id="fio" placeholder="А.А. Радченко" required>
       </div>
 
-      <!-- Поле кадастрового номера с префиксом -->
       <div class="form-group">
         <label for="cadastral">Кадастровый номер ($Кадастровый номер$)</label>
         <div class="input-prefix-group">
           <span class="input-prefix">33-01-008620/</span>
-          <input type="text" id="cadastral" placeholder="001" maxlength="6" required>
+          <input type="text" id="cadastral" placeholder="006" maxlength="6" required>
         </div>
       </div>
 
@@ -170,7 +170,6 @@
         <input type="number" step="any" id="unbuiltArea" placeholder="0" required>
       </div>
 
-      <!-- Автоматически рассчитываемое поле -->
       <div class="calc-box form-group">
         <label for="totalArea">Общая площадь ($Общая площадь$)</label>
         <input type="text" id="totalArea" placeholder="Вычисляется автоматически..." readonly>
@@ -198,73 +197,23 @@
     builtInput.addEventListener('input', calculateTotal);
     unbuiltInput.addEventListener('input', calculateTotal);
 
-    // Список ваших 4 файлов в репозитории
+    // Ваши 4 файла .docx в папке templates/
     const templates = [
-      { path: 'templates/Акт приемки вып. раб.doc', name: 'Акт приемки вып. раб.doc' },
-      { path: 'templates/Пояснительная .doc', name: 'Пояснительная .doc' },
-      { path: 'templates/Программа.doc', name: 'Программа.doc' },
-      { path: 'templates/титульный лист11.doc', name: 'титульный лист11.doc' }
+      { path: 'templates/1.docx', name: 'Акт приемки выполненных работ.docx' },
+      { path: 'templates/2.docx', name: 'Пояснительная записка.docx' },
+      { path: 'templates/3.docx', name: 'Программа.docx' },
+      { path: 'templates/4.docx', name: 'Титульный лист.docx' }
     ];
-
-    // Функция безопасной бинарной подстановки в старый .doc
-    function replaceInBinaryDoc(buffer, map) {
-      let uint8 = new Uint8Array(buffer);
-
-      for (const [key, val] of Object.entries(map)) {
-        const searchStr = `$${key}$`;
-        const replaceStr = String(val);
-
-        // Поиск и замена в кодировке UTF-16LE
-        const searchBytes = new Uint8Array(searchStr.length * 2);
-        for (let i = 0; i < searchStr.length; i++) {
-          const code = searchStr.charCodeAt(i);
-          searchBytes[i * 2] = code & 0xff;
-          searchBytes[i * 2 + 1] = (code >> 8) & 0xff;
-        }
-
-        const replaceBytes = new Uint8Array(replaceStr.length * 2);
-        for (let i = 0; i < replaceStr.length; i++) {
-          const code = replaceStr.charCodeAt(i);
-          replaceBytes[i * 2] = code & 0xff;
-          replaceBytes[i * 2 + 1] = (code >> 8) & 0xff;
-        }
-
-        // Сканирование бинарного массива
-        for (let i = 0; i <= uint8.length - searchBytes.length; i++) {
-          let match = true;
-          for (let j = 0; j < searchBytes.length; j++) {
-            if (uint8[i + j] !== searchBytes[j]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) {
-            // Подменяем байты
-            for (let j = 0; j < Math.min(searchBytes.length, replaceBytes.length); j++) {
-              uint8[i + j] = replaceBytes[j];
-            }
-            // Забиваем оставшиеся символы пробелами в UTF-16LE, если заменяемая строка длиннее
-            for (let j = replaceBytes.length; j < searchBytes.length; j += 2) {
-              uint8[i + j] = 0x20;
-              if (j + 1 < searchBytes.length) uint8[i + j + 1] = 0x00;
-            }
-          }
-        }
-      }
-      return uint8;
-    }
 
     document.getElementById('docForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       const status = document.getElementById('status');
       status.style.color = '#1e293b';
-      status.textContent = 'Формирование файлов...';
+      status.textContent = 'Формирование документов...';
 
-      // Формируем полный кадастровый номер с постоянным префиксом
       const fullCadastral = '33-01-008620/' + document.getElementById('cadastral').value.trim();
 
-      // Карта меток
-      const replacements = {
+      const formData = {
         'ФИО': document.getElementById('fio').value,
         'Кадастровый номер': fullCadastral,
         'Номер участка': document.getElementById('plotNumber').value,
@@ -279,16 +228,33 @@
         for (const tmpl of templates) {
           const response = await fetch(tmpl.path);
           if (!response.ok) {
-            throw new Error(`Не удалось открыть шаблон: ${tmpl.name}`);
+            throw new Error(`Не удалось найти файл шаблона: ${tmpl.path}`);
           }
-          const buffer = await response.arrayBuffer();
-          const modifiedBuffer = replaceInBinaryDoc(buffer, replacements);
-          
-          zip.file(tmpl.name, modifiedBuffer);
+          const arrayBuffer = await response.arrayBuffer();
+          const pizZip = new PizZip(arrayBuffer);
+
+          // Настраиваем подстановку меток вида $Переменная$
+          const doc = new window.docxtemplater(pizZip, {
+            delimiters: { start: '$', end: '$' },
+            paragraphLoop: true,
+            linebreaks: true
+          });
+
+          // Подставляем данные
+          doc.render(formData);
+
+          // Генерируем новый документ
+          const out = doc.getZip().generate({
+            type: "blob",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          });
+
+          zip.file(tmpl.name, out);
         }
 
+        // Скачиваем архив
         const zipContent = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipContent, 'Заполненные_документы.zip');
+        saveAs(zipContent, 'Готовые_Документы.zip');
 
         status.style.color = '#059669';
         status.textContent = 'Успешно! Архив скачан.';
