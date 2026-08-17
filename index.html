@@ -6,8 +6,13 @@
   <title>Генератор документов</title>
   
   <!-- Надежные библиотеки для работы с .docx -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
+  <!-- 1. PizZip подключается первым -->
+  <script src="https://unpkg.com/pizzip@3.1.7/dist/pizzip.min.js"></script>
+  
+  <!-- 2. Docxtemplater подключается вторым -->
+  <script src="https://unpkg.com/docxtemplater@3.50.0/build/docxtemplater.js"></script>
+  
+  <!-- 3. JSZip и FileSaver для упаковывания и скачивания -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
