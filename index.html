@@ -5,14 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Генератор документов</title>
   
-  <!-- Надежные библиотеки для работы с .docx -->
-  <!-- 1. PizZip подключается первым -->
+  <!-- Библиотеки для работы с .docx -->
   <script src="https://unpkg.com/pizzip@3.1.7/dist/pizzip.min.js"></script>
-  
-  <!-- 2. Docxtemplater подключается вторым -->
   <script src="https://unpkg.com/docxtemplater@3.50.0/build/docxtemplater.js"></script>
-  
-  <!-- 3. JSZip и FileSaver для упаковывания и скачивания -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
@@ -202,12 +197,12 @@
     builtInput.addEventListener('input', calculateTotal);
     unbuiltInput.addEventListener('input', calculateTotal);
 
-    // Ваши 4 файла .docx в папке templates/
+    // Файлы .docx в папке templates/
     const templates = [
-    { path: './templates/1.docx', name: 'Акт приемки выполненных работ.docx' },
-    { path: './templates/2.docx', name: 'Пояснительная записка.docx' },
-    { path: './templates/3.docx', name: 'Программа.docx' },
-    { path: './templates/4.docx', name: 'Титульный лист.docx' }
+      { path: './templates/1.docx', name: 'Акт приемки выполненных работ.docx' },
+      { path: './templates/2.docx', name: 'Пояснительная записка.docx' },
+      { path: './templates/3.docx', name: 'Программа.docx' },
+      { path: './templates/4.docx', name: 'Титульный лист.docx' }
     ];
 
     document.getElementById('docForm').addEventListener('submit', async function(e) {
@@ -216,12 +211,15 @@
       status.style.color = '#1e293b';
       status.textContent = 'Формирование документов...';
 
-      const fullCadastral = '33-01-008620/' + document.getElementById('cadastral').value.trim();
+      const rawFio = document.getElementById('fio').value.trim();
+      const cadastralVal = document.getElementById('cadastral').value.trim();
 
+      // Так как в шаблоне Word уже написано 33-01-008620/$Кадастровый номер$,
+      // сюда передаем ТОЛЬКО введенный хвост (например, "006")
       const formData = {
-        'ФИО': document.getElementById('fio').value,
-        'Кадастровый номер': fullCadastral,
-        'Номер участка': document.getElementById('plotNumber').value,
+        'ФИО': rawFio,
+        'Кадастровый номер': cadastralVal,
+        'Номер участка': document.getElementById('plotNumber').value.trim(),
         'Застроенная площадь': document.getElementById('builtArea').value,
         'Незастроенная площадь': document.getElementById('unbuiltArea').value,
         'Общая площадь': document.getElementById('totalArea').value
@@ -238,17 +236,14 @@
           const arrayBuffer = await response.arrayBuffer();
           const pizZip = new PizZip(arrayBuffer);
 
-          // Настраиваем подстановку меток вида $Переменная$
           const doc = new window.docxtemplater(pizZip, {
             delimiters: { start: '$', end: '$' },
             paragraphLoop: true,
             linebreaks: true
           });
 
-          // Подставляем данные
           doc.render(formData);
 
-          // Генерируем новый документ
           const out = doc.getZip().generate({
             type: "blob",
             mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -257,12 +252,15 @@
           zip.file(tmpl.name, out);
         }
 
-        // Скачиваем архив
+        // Архив будет называться по ФИО (например, "А.А. Радченко.zip")
+        const safeFileName = rawFio.replace(/[\\/:*?"<>|]/g, '_') || 'Документы';
+        const zipFilename = `${safeFileName}.zip`;
+
         const zipContent = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipContent, 'Готовые_Документы.zip');
+        saveAs(zipContent, zipFilename);
 
         status.style.color = '#059669';
-        status.textContent = 'Успешно! Архив скачан.';
+        status.textContent = `Успешно! Скачан архив: ${zipFilename}`;
       } catch (err) {
         console.error(err);
         status.style.color = '#dc2626';
